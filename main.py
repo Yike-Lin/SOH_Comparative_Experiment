@@ -11,12 +11,13 @@ def get_args():
     parser.add_argument('--random_seed', type=int, default=2023)
     # data
     parser.add_argument('--data', type=str, default='XJTU',choices=['XJTU','MIT'])
-    parser.add_argument('--input_type',type=str,default='charge',choices=['charge','partial_charge','handcraft_features'])
+    parser.add_argument('--input_type',type=str,default='full',choices=['charge','partial_charge','charge_partial','full','handcraft_features'])
     parser.add_argument('--test_battery_id',type=int,default=1,help='test battery id, 1-8 for XJTU (1-15 for batch-2), 1-5 for MIT')
     parser.add_argument('--batch_size',type=int,default=128)
     parser.add_argument('--normalized_type',type=str,default='minmax',choices=['minmax','standard'])
     parser.add_argument('--minmax_range',type=tuple,default=(-1,1),choices=[(0,1),(-1,1)])
     parser.add_argument('--batch', type=int, default=1,choices=[1,2,3,4,5,6,7,8,9])
+    parser.add_argument('--feature_channels', type=int, default=4)
 
     # model
     parser.add_argument('--model',type=str,default='CNN',choices=['CNN','LSTM','GRU','MLP','Attention'])
@@ -43,6 +44,14 @@ def load_data(args,test_battery_id):
         data_loader = loader.get_charge_data(test_battery_id=test_battery_id)
     elif args.input_type == 'partial_charge':
         data_loader = loader.get_partial_data(test_battery_id=test_battery_id)
+    elif args.input_type == 'charge_partial':
+        if args.data != 'XJTU':
+            raise ValueError('charge_partial is only supported for XJTU in this baseline.')
+        data_loader = loader.get_charge_partial_data(test_battery_id=test_battery_id)
+    elif args.input_type == 'full':
+        if args.data != 'XJTU':
+            raise ValueError('full is only supported for XJTU in this baseline.')
+        data_loader = loader.get_full_data(test_battery_id=test_battery_id)
     else:
         data_loader = loader.get_features(test_battery_id=test_battery_id)
     return data_loader
@@ -73,7 +82,7 @@ def multi_task_XJTU():  # 一次性训练所有模型和所有输入类型
     args = get_args()
     setattr(args,'data','XJTU')
     for m in ['CNN','MLP','Attention','LSTM','GRU']:
-        for type in ['handcraft_features','charge','partial_charge']:
+        for type in ['handcraft_features','charge','partial_charge','charge_partial','full']:
             setattr(args, 'model', m)
             setattr(args, 'input_type',type)
             main(args)
