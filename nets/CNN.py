@@ -32,11 +32,12 @@ class ResBlock(nn.Module):
 
 class CNN(nn.Module):
     '''
-    input shape: (N,4,128)
+    input shape: (N,C,128)
     '''
-    def __init__(self):
+    def __init__(self, input_channels=4):
         super(CNN,self).__init__()
-        self.layer1 = ResBlock(input_channel=4, output_channel=16, stride=1) # N,16,128
+        self.input_channels = input_channels
+        self.layer1 = ResBlock(input_channel=input_channels, output_channel=16, stride=1) # N,16,128
         self.layer2 = ResBlock(input_channel=16, output_channel=32, stride=2) # N,32,64
         self.layer3 = ResBlock(input_channel=32, output_channel=64, stride=2)  # N,64,32
         self.layer4 = ResBlock(input_channel=64, output_channel=96, stride=2)  # N,96,16
@@ -52,7 +53,7 @@ class CNN(nn.Module):
 
     def forward(self,x):
         '''
-        :param x: shape:(N,4,128)
+        :param x: shape:(N,C,128)
         :return:
         '''
         out = self.layer1(x)
@@ -66,7 +67,7 @@ class CNN(nn.Module):
 if __name__ == '__main__':
     x = torch.rand(30,4,128)
 
-    net = CNN()
+    net = CNN(input_channels=4)
     y = net(x)
     print(x.shape,y.shape)
 

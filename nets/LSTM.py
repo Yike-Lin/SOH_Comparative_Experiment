@@ -4,12 +4,13 @@ import torch.nn as nn
 
 class LSTM(nn.Module):
     '''
-    input shape: (N,4,128)
+    input shape: (N,C,128)
     '''
 
-    def __init__(self):
+    def __init__(self, input_channels=4):
         super(LSTM, self).__init__()
-        self.net = nn.LSTM(input_size=4,hidden_size=128,num_layers=2,batch_first=True)
+        self.input_channels = input_channels
+        self.net = nn.LSTM(input_size=input_channels,hidden_size=128,num_layers=2,batch_first=True)
         self.predictor = nn.Sequential(
             nn.Linear(128,64),
             nn.LeakyReLU(),
@@ -18,7 +19,7 @@ class LSTM(nn.Module):
 
     def forward(self, x):
         '''
-        :param x: (N,4,128)
+        :param x: (N,C,128)
         :return:
         '''
         x = x.transpose(1, 2)
@@ -31,7 +32,7 @@ class LSTM(nn.Module):
 if __name__ == '__main__':
     x = torch.rand(30,4,128)
 
-    net = LSTM()
+    net = LSTM(input_channels=4)
     y = net(x)
     print(x.shape,y.shape)
 

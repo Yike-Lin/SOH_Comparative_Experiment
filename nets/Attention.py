@@ -3,15 +3,16 @@ import torch.nn as nn
 
 class Attention(nn.Module):
     '''
-    input shape: (N,4,128)
+    input shape: (N,C,128)
     '''
 
-    def __init__(self):
+    def __init__(self, input_channels=4):
         super(Attention, self).__init__()
+        self.input_channels = input_channels
         self.dmodel = 128
         self.encoder_layer = nn.TransformerEncoderLayer(d_model=self.dmodel,nhead=4,dim_feedforward=128)
         self.transformer_encoder = nn.TransformerEncoder(encoder_layer=self.encoder_layer,num_layers=2)
-        self.linear = nn.Linear(4,self.dmodel)
+        self.linear = nn.Linear(input_channels,self.dmodel)
         self.conv = nn.Conv1d(in_channels=self.dmodel,out_channels=8,kernel_size=1)
         self.predictor = nn.Sequential(
             nn.Linear(128*8, 64),
@@ -21,7 +22,7 @@ class Attention(nn.Module):
 
     def forward(self, x):
         '''
-        :param x: (N,4,128)  (N,C,L)
+        :param x: (N,C,128)  (N,C,L)
         :return:
         '''
         x = x.transpose(1, 2)  # (N,L,C)
@@ -35,7 +36,7 @@ class Attention(nn.Module):
 if __name__ == '__main__':
     x = torch.rand((10, 4, 128)) #(N,C,L)
 
-    net = Attention()
+    net = Attention(input_channels=4)
     y = net(x)
     print(x.shape,y.shape)
 
