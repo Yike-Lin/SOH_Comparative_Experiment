@@ -1,5 +1,4 @@
 from sklearn import metrics
-import numpy as np
 
 class AverageMeter(object):
     """Computes and stores the average and current value"""
@@ -23,9 +22,8 @@ class AverageMeter(object):
 def eval_metrix(true_label,pred_label):
     MAE = metrics.mean_absolute_error(true_label,pred_label)
     MAPE = metrics.mean_absolute_percentage_error(true_label,pred_label)
-    MSE = metrics.mean_squared_error(true_label,pred_label)
-    RMSE = np.sqrt(metrics.mean_squared_error(true_label,pred_label))
-    return [MAE,MAPE,MSE,RMSE]
+    R2 = metrics.r2_score(true_label,pred_label)
+    return [MAE,MAPE,R2]
 
 def save_to_txt(save_name,string):
     f = open(save_name,mode='a')

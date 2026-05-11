@@ -26,12 +26,15 @@ def get_args():
     parser.add_argument('--lr',type=float,default=2e-3)
     parser.add_argument('--weight_decay', default=5e-4)
     parser.add_argument('--n_epoch',type=int,default=100)
-    parser.add_argument('--early_stop',default=30)
+    parser.add_argument('--early_stop',default=30,type=int)
     parser.add_argument('--device',default='cuda')
     parser.add_argument('--save_folder',default='results')
     parser.add_argument('--experiment_num',default=1,type=int,help='The number of times you want to repeat the same experiment')
 
     args = parser.parse_args()
+    if args.device == 'cuda' and not torch.cuda.is_available():
+        print('CUDA is not available, falling back to CPU.')
+        args.device = 'cpu'
     return args
 
 def load_data(args,test_battery_id):

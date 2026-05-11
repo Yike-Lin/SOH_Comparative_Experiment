@@ -82,7 +82,8 @@ class SOHMode(nn.Module):
         self.backbone.train()
         self.loss_meter.reset()
         for data,label in train_loader:
-            data,label = data.to(self.args.device),label.to(self.args.device)
+            data = data.to(self.args.device)
+            label = label.to(self.args.device).view(-1, 1)
             pred = self.forward(data)
             loss = self.mse(pred, label)
 
@@ -99,13 +100,14 @@ class SOHMode(nn.Module):
             true_label = []
             pred_label = []
             for data, label in test_loader:
-                data, label = data.to(self.args.device), label.to(self.args.device)
+                data = data.to(self.args.device)
+                label = label.to(self.args.device).view(-1, 1)
                 pred = self.forward(data)
                 loss = self.mse(pred, label)
 
                 self.loss_meter.update(loss.item())
-                true_label.append(label.cpu().detach().numpy())
-                pred_label.append(pred.cpu().detach().numpy())
+                true_label.append(label.cpu().detach().numpy().reshape(-1))
+                pred_label.append(pred.cpu().detach().numpy().reshape(-1))
             true_label = np.concatenate(true_label)
             pred_label = np.concatenate(pred_label)
         return true_label,pred_label
