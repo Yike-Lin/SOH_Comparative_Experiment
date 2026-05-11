@@ -15,6 +15,7 @@ class SOHMode(nn.Module):
     data shape:
     charge_data (N,4,128)
     partial_data (N,4,128)
+    charge_partial_data / full_data (N,8,128)
     features (N,1,67)
     '''
     def __init__(self,args):
@@ -47,26 +48,32 @@ class SOHMode(nn.Module):
     def _preprocessing_net(self):
         '''
         A preprocess network which transform data from different sources into the same shape
-        :return: A network, with output shape (N,4,128)
+        :return: A network, with output shape (N,C,128)
         '''
-        if self.args.input_type == 'charge': # charge_data (N,4,128)
-            net = nn.Conv1d(in_channels=4,out_channels=4,kernel_size=1)
-        elif self.args.input_type == 'partial_charge': #partial_data (N,4,128)
-            net = nn.Conv1d(in_channels=4, out_channels=4, kernel_size=1)
+        if self.args.input_type in ['charge_partial', 'full']:  # dual-view data (N,8,128)
+            self.in_channels = 8
+        elif self.args.input_type in ['charge', 'partial_charge']:  # (N,4,128)
+            self.in_channels = 4
         else:  # features (N,1,67)
-            net = nn.Linear(67,128*4) #(N,128*4)
+            self.feature_dim = 67
+            self.out_channels = getattr(self.args, 'feature_channels', 4)
+            net = nn.Linear(self.feature_dim, 128 * self.out_channels)
+            return net
+
+        self.out_channels = self.in_channels
+        net = nn.Conv1d(in_channels=self.in_channels, out_channels=self.out_channels, kernel_size=1)
 
         return net
 
 
     def _backbone(self):
-        backbone = eval(self.args.model)()
+        backbone = eval(self.args.model)(input_channels=self.out_channels)
         return backbone
 
     def forward(self,x):
         if self.args.input_type == 'handcraft_features':
             x = self.pre_net(x)
-            x = x.view(-1,4,128)
+            x = x.view(-1,self.out_channels,128)
         out = self.backbone(x)
         return out
 
@@ -198,11 +205,12 @@ if __name__ == '__main__':
         # data
         parser.add_argument('--data', type=str, default='XJTU', choices=['XJTU', 'MIT'])
         parser.add_argument('--input_type', type=str, default='charge',
-                            choices=['charge', 'partial_charge', 'handcraft_features'])
+                            choices=['charge', 'partial_charge', 'charge_partial', 'full', 'handcraft_features'])
         parser.add_argument('--batch_size', type=int, default=128)
         parser.add_argument('--normalized_type', type=str, default='minmax', choices=['minmax', 'standard'])
         parser.add_argument('--minmax_range', type=tuple, default=(0, 1), choices=[(0, 1), (1, 1)])
         parser.add_argument('--batch', type=int, default=1, choices=[1, 2, 3, 4, 5, 6, 7, 8, 9])
+        parser.add_argument('--feature_channels', type=int, default=4)
 
         # model
         parser.add_argument('--model', type=str, default='LSTM', choices=['CNN', 'LSTM', 'GRU', 'MLP', 'Attention'])
