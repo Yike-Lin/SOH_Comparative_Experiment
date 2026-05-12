@@ -3,8 +3,22 @@ from dataloader.XJTU_loader import XJTUDdataset
 from dataloader.MIT_loader import MITDdataset
 from nets.Model import SOHMode
 import os
+import random
+import numpy as np
 import torch
 os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+
+
+def set_random_seed(seed):
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed(seed)
+        torch.cuda.manual_seed_all(seed)
+    if hasattr(torch.backends, 'cudnn'):
+        torch.backends.cudnn.deterministic = True
+        torch.backends.cudnn.benchmark = False
 
 def get_args():
     parser = argparse.ArgumentParser(description='A benchmark for SOH estimation')
@@ -20,7 +34,7 @@ def get_args():
     parser.add_argument('--feature_channels', type=int, default=4)
 
     # model
-    parser.add_argument('--model',type=str,default='CNN',choices=['CNN','BiLSTM','CNNBiLSTM','LSTM','GRU','MLP','Attention'])
+    parser.add_argument('--model',type=str,default='CNN',choices=['CNN','BiLSTM','CNNBiLSTM','DualCNNBiLSTM','LSTM','GRU','MLP','Attention'])
     # CNN lr=2e-3  early_stop=30
 
     parser.add_argument('--lr',type=float,default=2e-3)
@@ -84,7 +98,7 @@ def main(args):
 def multi_task_XJTU():  # 一次性训练所有模型和所有输入类型
     args = get_args()
     setattr(args,'data','XJTU')
-    for m in ['CNN','BiLSTM','CNNBiLSTM','MLP','Attention','LSTM','GRU']:
+    for m in ['CNN','BiLSTM','CNNBiLSTM','DualCNNBiLSTM','MLP','Attention','LSTM','GRU']:
         for type in ['handcraft_features','charge','partial_charge','charge_partial','full']:
             setattr(args, 'model', m)
             setattr(args, 'input_type',type)
@@ -129,6 +143,7 @@ if __name__ == '__main__':
     # if just want to train one model on one battery and one input type, use this:
     args = get_args()
     for e in range(args.experiment_num):
+        set_random_seed(args.random_seed + e)
         data_loader = load_data(args, test_battery_id=args.test_battery_id)
         model = SOHMode(args)
         model.Train(data_loader['train'], data_loader['valid'], data_loader['test'],

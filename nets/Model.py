@@ -3,6 +3,7 @@ import torch.nn as nn
 from nets.CNN import CNN
 from nets.BiLSTM import BiLSTM
 from nets.CNNBiLSTM import CNNBiLSTM
+from nets.DualCNNBiLSTM import DualCNNBiLSTM
 from nets.LSTM import LSTM
 from nets.Attention import Attention
 from nets.GRU import GRU
@@ -217,7 +218,7 @@ if __name__ == '__main__':
         parser.add_argument('--feature_channels', type=int, default=4)
 
         # model
-        parser.add_argument('--model', type=str, default='LSTM', choices=['CNN', 'BiLSTM', 'CNNBiLSTM', 'LSTM', 'GRU', 'MLP', 'Attention'])
+        parser.add_argument('--model', type=str, default='LSTM', choices=['CNN', 'BiLSTM', 'CNNBiLSTM', 'DualCNNBiLSTM', 'LSTM', 'GRU', 'MLP', 'Attention'])
 
         parser.add_argument('--lr', type=float, default=2e-3)
         parser.add_argument('--weight_decay', default=5e-4)
