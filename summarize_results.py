@@ -103,12 +103,23 @@ def dataframe_to_markdown(df: pd.DataFrame) -> str:
     return "\n".join(lines)
 
 
-def write_report(path: Path, title: str, battery_df: pd.DataFrame, batch_df: pd.DataFrame) -> None:
+def make_group_filename(group: str) -> str:
+    return re.sub(r"[^A-Za-z0-9_.-]+", "_", group)
+
+
+def write_report(
+    path: Path,
+    title: str,
+    battery_df: pd.DataFrame,
+    batch_df: pd.DataFrame,
+    overall_df: pd.DataFrame,
+) -> None:
     content = [
         f"# {title}",
         "",
         "Battery-level mean: mean of all experiments inside each `batchX-testbatteryY` folder.",
         "Batch-level mean: mean of the battery-level rows inside the same batch.",
+        "Overall mean: mean of all battery-level rows inside the same model/result group.",
         "",
         "## Battery Summary",
         "",
@@ -118,8 +129,35 @@ def write_report(path: Path, title: str, battery_df: pd.DataFrame, batch_df: pd.
         "",
         dataframe_to_markdown(batch_df),
         "",
+        "## Overall Summary",
+        "",
+        dataframe_to_markdown(overall_df),
+        "",
     ]
     path.write_text("\n".join(content), encoding="utf-8")
+
+
+def write_group_reports(
+    output_dir: Path,
+    battery_df: pd.DataFrame,
+    batch_df: pd.DataFrame,
+    overall_df: pd.DataFrame,
+) -> None:
+    for group in overall_df["group"].tolist():
+        group_battery = battery_df[battery_df["group"] == group].reset_index(drop=True)
+        group_batch = batch_df[batch_df["group"] == group].reset_index(drop=True)
+        group_overall = overall_df[overall_df["group"] == group].reset_index(drop=True)
+        stem = make_group_filename(group)
+        group_battery.to_csv(output_dir / f"{stem}_battery_summary.csv", index=False, encoding="utf-8-sig")
+        group_batch.to_csv(output_dir / f"{stem}_batch_summary.csv", index=False, encoding="utf-8-sig")
+        group_overall.to_csv(output_dir / f"{stem}_overall_summary.csv", index=False, encoding="utf-8-sig")
+        write_report(
+            output_dir / f"{stem}_summary_report.md",
+            f"Results Summary - {group}",
+            group_battery,
+            group_batch,
+            group_overall,
+        )
 
 
 def main() -> None:
@@ -155,21 +193,49 @@ def main() -> None:
         .reset_index(drop=True)
     )
 
+    overall_df = (
+        battery_df.groupby(["group"], as_index=False)
+        .agg(
+            n_battery_rows=("testbattery", "count"),
+            n_batches=("batch", "nunique"),
+            **{name: (name, "mean") for name in METRIC_NAMES},
+        )
+        .sort_values(["group"])
+        .reset_index(drop=True)
+    )
+
+    comparison_df = (
+        batch_df.pivot(index="batch", columns="group", values=METRIC_NAMES)
+        .sort_index()
+    )
+    comparison_df.columns = [f"{metric}__{group}" for metric, group in comparison_df.columns]
+    comparison_df = comparison_df.reset_index()
+
     battery_csv = output_dir / "battery_summary.csv"
     batch_csv = output_dir / "batch_summary.csv"
+    overall_csv = output_dir / "overall_summary.csv"
+    comparison_csv = output_dir / "comparison_batch_summary.csv"
     report_md = output_dir / "summary_report.md"
 
     battery_df.to_csv(battery_csv, index=False, encoding="utf-8-sig")
     batch_df.to_csv(batch_csv, index=False, encoding="utf-8-sig")
-    write_report(report_md, "Results Summary", battery_df, batch_df)
+    overall_df.to_csv(overall_csv, index=False, encoding="utf-8-sig")
+    comparison_df.to_csv(comparison_csv, index=False, encoding="utf-8-sig")
+    write_report(report_md, "Results Summary", battery_df, batch_df, overall_df)
+    write_group_reports(output_dir, battery_df, batch_df, overall_df)
 
     print(f"Scanned {len(df)} result files under {root}")
     print(f"Wrote battery summary: {battery_csv}")
     print(f"Wrote batch summary:   {batch_csv}")
+    print(f"Wrote overall summary: {overall_csv}")
+    print(f"Wrote comparison:      {comparison_csv}")
     print(f"Wrote report:          {report_md}")
     print()
     print("Batch Summary")
     print(batch_df.to_string(index=False, float_format=lambda x: f"{x:.6f}"))
+    print()
+    print("Overall Summary")
+    print(overall_df.to_string(index=False, float_format=lambda x: f"{x:.6f}"))
 
 
 if __name__ == "__main__":
