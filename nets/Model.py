@@ -56,7 +56,7 @@ class SOHMode(nn.Module):
         '''
         if self.args.input_type in ['charge_partial', 'full']:  # dual-view data (N,8,128)
             self.in_channels = 8
-        elif self.args.input_type in ['charge', 'partial_charge']:  # (N,4,128)
+        elif self.args.input_type in ['charge', 'discharge', 'partial_charge']:  # (N,4,128)
             self.in_channels = 4
         else:  # features (N,1,67)
             self.feature_dim = 67
@@ -211,7 +211,7 @@ if __name__ == '__main__':
         # data
         parser.add_argument('--data', type=str, default='XJTU', choices=['XJTU', 'MIT'])
         parser.add_argument('--input_type', type=str, default='charge',
-                            choices=['charge', 'partial_charge', 'charge_partial', 'full', 'handcraft_features'])
+                            choices=['charge', 'discharge', 'partial_charge', 'charge_partial', 'full', 'handcraft_features'])
         parser.add_argument('--batch_size', type=int, default=128)
         parser.add_argument('--normalized_type', type=str, default='minmax', choices=['minmax', 'standard'])
         parser.add_argument('--minmax_range', type=tuple, default=(0, 1), choices=[(0, 1), (1, 1)])

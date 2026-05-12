@@ -25,7 +25,7 @@ def get_args():
     parser.add_argument('--random_seed', type=int, default=2023)
     # data
     parser.add_argument('--data', type=str, default='XJTU',choices=['XJTU','MIT'])
-    parser.add_argument('--input_type',type=str,default='full',choices=['charge','partial_charge','charge_partial','full','handcraft_features'])
+    parser.add_argument('--input_type',type=str,default='full',choices=['charge','discharge','partial_charge','charge_partial','full','handcraft_features'])
     parser.add_argument('--test_battery_id',type=int,default=1,help='test battery id, 1-8 for XJTU (1-15 for batch-2), 1-5 for MIT')
     parser.add_argument('--batch_size',type=int,default=128)
     parser.add_argument('--normalized_type',type=str,default='minmax',choices=['minmax','standard'])
@@ -59,6 +59,10 @@ def load_data(args,test_battery_id):
 
     if args.input_type == 'charge':
         data_loader = loader.get_charge_data(test_battery_id=test_battery_id)
+    elif args.input_type == 'discharge':
+        if args.data != 'XJTU':
+            raise ValueError('discharge is only supported for XJTU in this baseline.')
+        data_loader = loader.get_discharge_data(test_battery_id=test_battery_id)
     elif args.input_type == 'partial_charge':
         data_loader = loader.get_partial_data(test_battery_id=test_battery_id)
     elif args.input_type == 'charge_partial':
@@ -99,7 +103,7 @@ def multi_task_XJTU():  # 一次性训练所有模型和所有输入类型
     args = get_args()
     setattr(args,'data','XJTU')
     for m in ['CNN','BiLSTM','CNNBiLSTM','DualCNNBiLSTM','DualBranchBiLSTMAttn','MLP','Attention','LSTM','GRU']:
-        for type in ['handcraft_features','charge','partial_charge','charge_partial','full']:
+        for type in ['handcraft_features','charge','discharge','partial_charge','charge_partial','full']:
             setattr(args, 'model', m)
             setattr(args, 'input_type',type)
             main(args)
