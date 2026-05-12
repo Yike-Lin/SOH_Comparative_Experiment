@@ -34,7 +34,7 @@ def get_args():
     parser.add_argument('--feature_channels', type=int, default=4)
 
     # model
-    parser.add_argument('--model',type=str,default='CNN',choices=['CNN','BiLSTM','CNNBiLSTM','DualCNNBiLSTM','LSTM','GRU','MLP','Attention'])
+    parser.add_argument('--model',type=str,default='CNN',choices=['CNN','BiLSTM','CNNBiLSTM','DualCNNBiLSTM','DualBranchBiLSTMAttn','LSTM','GRU','MLP','Attention'])
     # CNN lr=2e-3  early_stop=30
 
     parser.add_argument('--lr',type=float,default=2e-3)
@@ -98,7 +98,7 @@ def main(args):
 def multi_task_XJTU():  # 一次性训练所有模型和所有输入类型
     args = get_args()
     setattr(args,'data','XJTU')
-    for m in ['CNN','BiLSTM','CNNBiLSTM','DualCNNBiLSTM','MLP','Attention','LSTM','GRU']:
+    for m in ['CNN','BiLSTM','CNNBiLSTM','DualCNNBiLSTM','DualBranchBiLSTMAttn','MLP','Attention','LSTM','GRU']:
         for type in ['handcraft_features','charge','partial_charge','charge_partial','full']:
             setattr(args, 'model', m)
             setattr(args, 'input_type',type)
