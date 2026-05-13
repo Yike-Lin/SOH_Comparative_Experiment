@@ -118,6 +118,34 @@ class XJTUDdataset():
 
         return data, soh
 
+    def _parser_full_charge_mat_data(self, battery_i_mat):
+        '''
+        Parse only the charge profile from full charge/discharge files.
+        Output shape: (N, 4, 128)
+        '''
+        cycles = battery_i_mat['cycles']
+        data = []
+        label = []
+        for i in range(cycles.shape[1]):
+            cycle_i_data = cycles[0, i]
+            charge_data = cycle_i_data['charge_data'][0, 0]
+            charge_i = self._parse_profile(charge_data)
+            capacity = float(cycle_i_data['capacity'][0][0])
+            label.append(capacity)
+            data.append(charge_i)
+        data = np.array(data, dtype=np.float32)
+        label = np.array(label, dtype=np.float32)
+        print(data.shape, label.shape)
+
+        scaler = Scaler(data)
+        if self.normalized_type == 'standard':
+            data = scaler.standerd()
+        else:
+            data = scaler.minmax(feature_range=self.minmax_range)
+        soh = label / self.max_capacity
+
+        return data, soh
+
     def _parser_dual_mat_data(self, charge_battery_mat, partial_battery_mat):
         '''
         Align charge and partial_charge cycle by cycle, then concatenate them into 8 channels.
@@ -231,14 +259,41 @@ class XJTUDdataset():
         return self._encapsulation(train_x, train_y, test_x, test_y)
 
     def get_charge_data(self,test_battery_id=1):
-        print('----------- load charge data -------------')
-        file_name = f'batch-{self.batch}.mat'
-        self.charge_path = os.path.join(self.root, 'charge', file_name)
-        train_loader, valid_loader, test_loader = self._get_raw_data(
-            path=self.charge_path,
-            test_battery_id=test_battery_id,
-            parser_fn=self._parser_mat_data
-        )
+        print('----------- load charge data from full charge/discharge files -------------')
+        file_name = f'Batch{self.batch}_full.mat'
+        self.full_path = os.path.join(self.root, 'full', file_name)
+        if not os.path.exists(self.full_path):
+            available = sorted(
+                f for f in os.listdir(os.path.join(self.root, 'full'))
+                if f.lower().endswith('_full.mat')
+            )
+            raise FileNotFoundError(
+                f'full data file not found for batch {self.batch}: {self.full_path}. '
+                f'Available full files: {available}'
+            )
+        mat = loadmat(self.full_path)
+        battery = mat['battery']
+        battery_ids = list(range(1, battery.shape[1] + 1))
+        if test_battery_id not in battery_ids:
+            raise IndexError(f'"test_battery" must be in the {battery_ids}, but got {test_battery_id}. ')
+
+        test_battery = battery[0, test_battery_id - 1]
+        print(f'test battery id: {test_battery_id}, test data shape: ', end='')
+        test_x, test_y = self._parser_full_charge_mat_data(test_battery)
+        train_x, train_y = [], []
+        for id in battery_ids:
+            if id == test_battery_id:
+                continue
+            print(f'train battery id: {id}, ', end='')
+            train_battery = battery[0, id - 1]
+            x, y = self._parser_full_charge_mat_data(train_battery)
+            train_x.append(x)
+            train_y.append(y)
+        train_x = np.concatenate(train_x, axis=0)
+        train_y = np.concatenate(train_y, axis=0)
+        print('train data shape: ', train_x.shape, train_y.shape)
+
+        train_loader, valid_loader, test_loader = self._encapsulation(train_x, train_y, test_x, test_y)
         data_dict = {'train':train_loader,
                      'test':test_loader,
                      'valid':valid_loader}
