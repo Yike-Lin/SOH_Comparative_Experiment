@@ -4,3 +4,4 @@ __pycache__/
 .idea/
 results/
 results_summary/
+results_summary_all/
