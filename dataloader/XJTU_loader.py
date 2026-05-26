@@ -60,7 +60,7 @@ class XJTUDdataset():
 
         return data,soh
 
-    def _parser_full_mat_data(self, battery_i_mat):
+    def _parser_full_mat_data(self, battery_i_mat, battery_id=None, return_meta=False):
         '''
         :param battery_i_mat: shape:(1,len) with field `cycles`
         :return: np.array
@@ -68,6 +68,7 @@ class XJTUDdataset():
         cycles = battery_i_mat['cycles']
         data = []
         label = []
+        meta = []
         for i in range(cycles.shape[1]):
             cycle_i_data = cycles[0, i]
             charge_data = cycle_i_data['charge_data'][0, 0]
@@ -77,6 +78,12 @@ class XJTUDdataset():
             capacity = float(cycle_i_data['capacity'][0][0])
             label.append(capacity)
             data.append(np.concatenate([charge_i, discharge_i], axis=0))
+            if return_meta:
+                meta.append({
+                    'battery_id': battery_id,
+                    'cycle_id': i + 1,
+                    'soh': capacity / self.max_capacity,
+                })
         data = np.array(data, dtype=np.float32)
         label = np.array(label, dtype=np.float32)
         print(data.shape, label.shape)
@@ -88,6 +95,8 @@ class XJTUDdataset():
             data = scaler.minmax(feature_range=self.minmax_range)
         soh = label / self.max_capacity
 
+        if return_meta:
+            return data, soh, pd.DataFrame(meta)
         return data, soh
 
     def _parser_full_discharge_mat_data(self, battery_i_mat):
@@ -382,6 +391,95 @@ class XJTUDdataset():
                      'valid': valid_loader}
         print('-------------  finished !  ---------------')
         return data_dict
+
+    def get_full_arrays(self, test_battery_id=1):
+        '''
+        Return raw full-data arrays plus metadata for downstream analysis tools
+        such as SHAP. The train split follows the same random_state as
+        `_encapsulation`, so the sample set is consistent with training.
+        '''
+        print('----------- load full charge/discharge arrays -------------')
+        file_name = f'Batch{self.batch}_full.mat'
+        self.full_path = os.path.join(self.root, 'full', file_name)
+        if not os.path.exists(self.full_path):
+            available = sorted(
+                f for f in os.listdir(os.path.join(self.root, 'full'))
+                if f.lower().endswith('_full.mat')
+            )
+            raise FileNotFoundError(
+                f'full data file not found for batch {self.batch}: {self.full_path}. '
+                f'Available full files: {available}'
+            )
+
+        mat = loadmat(self.full_path)
+        battery = mat['battery']
+        battery_ids = list(range(1, battery.shape[1] + 1))
+        if test_battery_id not in battery_ids:
+            raise IndexError(f'"test_battery" must be in the {battery_ids}, but got {test_battery_id}. ')
+
+        test_battery = battery[0, test_battery_id - 1]
+        print(f'test battery id: {test_battery_id}, test data shape: ', end='')
+        test_x, test_y, test_meta = self._parser_full_mat_data(
+            test_battery,
+            battery_id=test_battery_id,
+            return_meta=True
+        )
+
+        train_x_list, train_y_list, train_meta_list = [], [], []
+        for id in battery_ids:
+            if id == test_battery_id:
+                continue
+            print(f'train battery id: {id}, ', end='')
+            train_battery = battery[0, id - 1]
+            x, y, meta = self._parser_full_mat_data(
+                train_battery,
+                battery_id=id,
+                return_meta=True
+            )
+            train_x_list.append(x)
+            train_y_list.append(y)
+            train_meta_list.append(meta)
+
+        train_x = np.concatenate(train_x_list, axis=0)
+        train_y = np.concatenate(train_y_list, axis=0)
+        train_meta = pd.concat(train_meta_list, ignore_index=True)
+        print('train data shape: ', train_x.shape, train_y.shape)
+
+        all_train_index = np.arange(train_x.shape[0])
+        train_index, valid_index = train_test_split(
+            all_train_index,
+            test_size=0.2,
+            random_state=self.seed,
+        )
+
+        arrays = {
+            'train': {
+                'x': train_x[train_index],
+                'y': train_y[train_index],
+                'meta': train_meta.iloc[train_index].reset_index(drop=True),
+                'index': np.asarray(train_index, dtype=int),
+            },
+            'valid': {
+                'x': train_x[valid_index],
+                'y': train_y[valid_index],
+                'meta': train_meta.iloc[valid_index].reset_index(drop=True),
+                'index': np.asarray(valid_index, dtype=int),
+            },
+            'test': {
+                'x': test_x,
+                'y': test_y,
+                'meta': test_meta.reset_index(drop=True),
+                'index': np.arange(test_x.shape[0], dtype=int),
+            },
+            'all_train': {
+                'x': train_x,
+                'y': train_y,
+                'meta': train_meta.reset_index(drop=True),
+                'index': np.arange(train_x.shape[0], dtype=int),
+            },
+        }
+        print('-------------  finished !  ---------------')
+        return arrays
 
     def get_charge_partial_data(self, test_battery_id=1):
         print('----------- load charge + partial_charge data -------------')
