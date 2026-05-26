@@ -81,6 +81,25 @@ class SOHMode(nn.Module):
         out = self.backbone(x)
         return out
 
+    def load_checkpoint(self, checkpoint_path, map_location=None):
+        '''
+        Load a saved checkpoint produced by `save_all`.
+        '''
+        if map_location is None:
+            map_location = self.args.device
+        checkpoint = torch.load(checkpoint_path, map_location=map_location)
+        if 'pre_net' not in checkpoint or 'backbone' not in checkpoint:
+            raise KeyError(
+                f'Invalid checkpoint format in {checkpoint_path}: '
+                'expected keys `pre_net` and `backbone`.'
+            )
+        self.pre_net.load_state_dict(checkpoint['pre_net'])
+        self.backbone.load_state_dict(checkpoint['backbone'])
+        self.pre_net.to(self.args.device)
+        self.backbone.to(self.args.device)
+        self.eval()
+        return self
+
     def _train_one_epoch(self,train_loader):
         self.pre_net.train()
         self.backbone.train()
