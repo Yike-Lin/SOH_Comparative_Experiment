@@ -87,7 +87,10 @@ class SOHMode(nn.Module):
         '''
         if map_location is None:
             map_location = self.args.device
-        checkpoint = torch.load(checkpoint_path, map_location=map_location)
+        try:
+            checkpoint = torch.load(checkpoint_path, map_location=map_location, weights_only=True)
+        except TypeError:
+            checkpoint = torch.load(checkpoint_path, map_location=map_location)
         if 'pre_net' not in checkpoint or 'backbone' not in checkpoint:
             raise KeyError(
                 f'Invalid checkpoint format in {checkpoint_path}: '
