@@ -216,22 +216,85 @@ def save_current_figure(path: Path, dpi: int = 300) -> None:
     plt.close()
 
 
-def plot_group_bar(group_exp, output_path: Path) -> None:
-    import shap
+def _plot_mean_abs_bar(
+    values: np.ndarray,
+    labels: Sequence[str],
+    output_path: Path,
+    title: str,
+    figsize: Tuple[float, float],
+    color: str = "#ff0051",
+) -> None:
+    values = np.asarray(values, dtype=float).reshape(-1)
+    labels = list(labels)
+    if values.shape[0] != len(labels):
+        raise ValueError("values and labels must have the same length")
 
-    plt.figure(figsize=(6.5, 4.2))
-    shap.plots.bar(group_exp, max_display=2, show=False)
-    plt.title("Grouped SHAP Importance: Charge vs Discharge")
+    order = np.argsort(values)[::-1]
+    sorted_values = values[order]
+    sorted_labels = [labels[idx] for idx in order]
+
+    fig, ax = plt.subplots(figsize=figsize)
+    y_pos = np.arange(len(sorted_values))
+    bars = ax.barh(y_pos, sorted_values, color=color, edgecolor="white", linewidth=1.0)
+
+    ax.set_yticks(y_pos)
+    ax.set_yticklabels(sorted_labels)
+    ax.invert_yaxis()
+    ax.set_title(title)
+    ax.set_xlabel("mean(|SHAP value|)")
+    ax.xaxis.grid(True, linestyle=":", alpha=0.35)
+    ax.set_axisbelow(True)
+
+    max_value = float(sorted_values.max()) if sorted_values.size else 0.0
+    x_pad = max(max_value * 0.03, 1e-6)
+    ax.set_xlim(0.0, max_value * 1.12 + x_pad)
+
+    for bar, value in zip(bars, sorted_values):
+        x = bar.get_width()
+        y = bar.get_y() + bar.get_height() / 2.0
+        ax.text(
+            x + x_pad,
+            y,
+            f"+{value:.6f}",
+            va="center",
+            ha="left",
+            fontsize=11,
+            color=color,
+            clip_on=False,
+        )
+
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+    fig.tight_layout()
     save_current_figure(output_path)
+
+
+def plot_group_bar(group_exp, output_path: Path) -> None:
+    values = np.asarray(group_exp.values, dtype=float)
+    if values.ndim != 2:
+        raise ValueError(f"group_exp.values must be 2D, got {values.shape}")
+    mean_abs = np.abs(values).mean(axis=0)
+    _plot_mean_abs_bar(
+        values=mean_abs,
+        labels=GROUP_NAMES,
+        output_path=output_path,
+        title="Grouped SHAP Importance: Charge vs Discharge",
+        figsize=(6.8, 4.2),
+    )
 
 
 def plot_channel_bar(channel_exp, output_path: Path) -> None:
-    import shap
-
-    plt.figure(figsize=(9.5, 5.5))
-    shap.plots.bar(channel_exp, max_display=8, show=False)
-    plt.title("Channel-level SHAP Importance")
-    save_current_figure(output_path)
+    values = np.asarray(channel_exp.values, dtype=float)
+    if values.ndim != 2:
+        raise ValueError(f"channel_exp.values must be 2D, got {values.shape}")
+    mean_abs = np.abs(values).mean(axis=0)
+    _plot_mean_abs_bar(
+        values=mean_abs,
+        labels=CHANNEL_NAMES,
+        output_path=output_path,
+        title="Channel-level SHAP Importance",
+        figsize=(9.8, 5.5),
+    )
 
 
 def plot_beeswarm(channel_exp, output_path: Path) -> None:
@@ -255,7 +318,7 @@ def plot_heatmap(channel_exp, output_path: Path) -> None:
 def plot_waterfall_triptych(
     channel_exp,
     output_path: Path,
-    sample_indices: Sequence[int],
+    sample_positions: Sequence[int],
     sample_titles: Sequence[str],
 ) -> None:
     import shap
@@ -263,9 +326,9 @@ def plot_waterfall_triptych(
     with tempfile.TemporaryDirectory() as tmpdir:
         tmpdir_path = Path(tmpdir)
         temp_paths: List[Path] = []
-        for idx, title in zip(sample_indices, sample_titles):
+        for pos, title in zip(sample_positions, sample_titles):
             plt.figure(figsize=(10.5, 5.8))
-            shap.plots.waterfall(channel_exp[int(idx)], max_display=8, show=False)
+            shap.plots.waterfall(channel_exp[int(pos)], max_display=8, show=False)
             plt.title(title)
             temp_path = tmpdir_path / f"waterfall_{len(temp_paths)}.png"
             save_current_figure(temp_path)
@@ -546,6 +609,9 @@ def main() -> None:
             padded.append(padded[-1])
         local_indices = np.asarray(padded, dtype=int)
 
+    explain_index_to_position = {int(idx): pos for pos, idx in enumerate(explain_indices.tolist())}
+    local_positions = np.asarray([explain_index_to_position[int(idx)] for idx in local_indices], dtype=int)
+
     background_x = train_x[background_indices]
     explain_x = test_x[explain_indices]
 
@@ -657,7 +723,7 @@ def main() -> None:
     plot_waterfall_triptych(
         channel_signed_exp,
         output_dir / "fig05_waterfall_triptych.png",
-        local_indices,
+        local_positions,
         local_titles,
     )
 
